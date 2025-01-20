@@ -1,0 +1,368 @@
+
+var dataObject = {};
+function displayData(id, data) {
+    var htmlObj, htmlTemplate, html, arr = [], a, l, rowClone, x, j, i, ii, cc, repeat, repeatObj, repeatX = "";
+    htmlObj = document.getElementById(id);
+    htmlTemplate = initTemplate(id, htmlObj);
+    html = htmlTemplate.cloneNode(true);
+    arr = getElementsByAttribute(html, "repeat");
+    l = arr.length;
+    for (j = (l - 1); j >= 0; j -= 1) {
+        cc = arr[j].getAttribute("repeat").split(" ");
+        if (cc.length == 1) {
+            repeat = cc[0];
+        } else {
+            repeatX = cc[0];
+            repeat = cc[2];
+        }
+        arr[j].removeAttribute("repeat");
+        repeatObj = data[repeat];
+        if (repeatObj && typeof repeatObj == "object" && repeatObj.length != "undefined") {
+            i = 0;
+            for (x in repeatObj) {
+                i += 1;
+                rowClone = arr[j];
+                rowClone = needleInHaystack(rowClone, "element", repeatX, repeatObj[x]);
+                a = rowClone.attributes;
+                for (ii = 0; ii < a.length; ii += 1) {
+                    a[ii].value = needleInHaystack(a[ii], "attribute", repeatX, repeatObj[x]).value;
+                }
+                (i === repeatObj.length) ? arr[j].parentNode.replaceChild(rowClone, arr[j]) : arr[j].parentNode.insertBefore(rowClone, arr[j]);
+            }
+        } else {
+            console.log("repeat must be an array. " + repeat + " is not an array.");
+            continue;
+        }
+    }
+    html = needleInHaystack(html, "element");
+    htmlObj.parentNode.replaceChild(html, htmlObj);
+    function initTemplate(id, obj) {
+        var template;
+        template = obj.cloneNode(true);
+        if (dataObject.hasOwnProperty(id)) { return dataObject[id]; }
+        dataObject[id] = template;
+        return template;
+    }
+    function getElementsByAttribute(x, att) {
+        var arr = [], arrCount = -1, i, l, y = x.getElementsByTagName("*"), z = att.toUpperCase();
+        l = y.length;
+        for (i = -1; i < l; i += 1) {
+            if (i == -1) { y[i] = x; }
+            if (y[i].getAttribute(z) !== null) { arrCount += 1; arr[arrCount] = y[i]; }
+        }
+        return arr;
+    }
+    function needleInHaystack(elmnt, typ, repeatX, x) {
+        var value, rowClone, pos1, haystack, pos2, needle = [], needleToReplace, i, cc, r;
+        rowClone = elmnt.cloneNode(true);
+        pos1 = 0;
+        while (pos1 > -1) {
+            haystack = (typ == "attribute") ? rowClone.value : rowClone.innerHTML;
+            pos1 = haystack.indexOf("{{", pos1);
+            if (pos1 === -1) { break; }
+            pos2 = haystack.indexOf("}}", pos1 + 1);
+            needleToReplace = haystack.substring(pos1 + 2, pos2);
+            needle = needleToReplace.split("||");
+            value = undefined;
+            for (i = 0; i < needle.length; i += 1) {
+                needle[i] = needle[i].replace(/^\s+|\s+$/gm, ''); //trim
+                //value = ((x && x[needle[i]]) || (data && data[needle[i]]));
+                if (x) { value = x[needle[i]]; }
+                if (value == undefined && data) { value = data[needle[i]]; }
+                if (value == undefined) {
+                    cc = needle[i].split(".");
+                    if (cc[0] == repeatX) { value = x[cc[1]]; }
+                }
+                if (value == undefined) {
+                    if (needle[i] == repeatX) { value = x; }
+                }
+                if (value == undefined) {
+                    if (needle[i].substr(0, 1) == '"') {
+                        value = needle[i].replace(/"/g, "");
+                    } else if (needle[i].substr(0, 1) == "'") {
+                        value = needle[i].replace(/'/g, "");
+                    }
+                }
+                if (value != undefined) { break; }
+            }
+            if (value != undefined) {
+                r = "{{" + needleToReplace + "}}";
+                if (typ == "attribute") {
+                    rowClone.value = rowClone.value.replace(r, value);
+                } else {
+                    w3ReplaceHTML(rowClone, r, value);
+                }
+            }
+            pos1 = pos1 + 1;
+        }
+        return rowClone;
+    }
+    function w3ReplaceHTML(a, r, result) {
+        var b, l, i, a, x, j;
+        if (a.hasAttributes()) {
+            b = a.attributes;
+            l = b.length;
+            for (i = 0; i < l; i += 1) {
+                if (b[i].value.indexOf(r) > -1) { b[i].value = b[i].value.replace(r, result); }
+            }
+        }
+        x = a.getElementsByTagName("*");
+        l = x.length;
+        a.innerHTML = a.innerHTML.replace(r, result);
+    }
+}
+
+function includeHTML(cb) {
+    var z, i, elmnt, file, xhttp;
+    z = document.getElementsByTagName("*");
+    for (i = 0; i < z.length; i++) {
+        elmnt = z[i];
+        file = elmnt.getAttribute("include-html");
+        if (file) {
+            xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    elmnt.innerHTML = this.responseText;
+                    elmnt.removeAttribute("include-html");
+                    includeHTML(cb);
+                }
+            }
+            if ("withCredentials" in xhttp) {
+                // XHR for Chrome/Firefox/Opera/Safari.
+                xhttp.open("GET", file, true);
+            } else if (typeof XDomainRequest != "undefined") {
+                // XDomainRequest for IE.
+                xhr = new XDomainRequest();
+                xhr.open("GET", file, true);
+            }
+            xhttp.send();
+            return;
+        }
+    }
+    if (cb) cb();
+}
+
+function http(target, readyfunc, xml, method) {
+    var httpObj;
+    if (!method) { method = "GET"; }
+    if (window.XMLHttpRequest) {
+        httpObj = new XMLHttpRequest();
+    } else if (window.ActiveXObject) {
+        httpObj = new ActiveXObject("Microsoft.XMLHTTP");
+    }
+    if (httpObj) {
+        if (readyfunc) { httpObj.onreadystatechange = readyfunc; }
+        httpObj.open(method, target, true);
+        httpObj.send(xml);
+    }
+}
+
+/* Send Email via SMTPJS */
+function sendMail() {
+    document.getElementById('contact-form').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const output = `
+        <p>You have a new contact request</p>
+        <h3>Contact Details</h3>
+        <ul>
+            <li>Name: ${this.name.value}</li>
+            <li>Fone: ${this.fone.value}</li>
+            <li>Email: ${this.email.value}</li>
+        </ul>
+        <h3>Message</h3>
+        <p>${this.textMessage.value}</p>
+        `;
+        const nome = this.name.value;
+        await Email.send({
+            SecureToken: "a1f72705-1616-4b97-adbc-332baa92ee34",
+            To: 'emporiosaudecuritiba@gmail.com',
+            From: "emporiosaudecuritiba@gmail.com",
+
+            Subject: this.subject.value,
+            Body: output
+        }).then(
+            /* message => alert(`Obrigado pela visita Sr(a) ${nome}, entrarei em contato o mais breve possível!`) */
+            message => modalSet('modal-confirm', `Obrigado pela visita Sr(a) ${nome}, entrarei em contato o mais breve possível! Tenha um excelente dia.`)
+        );
+        document.getElementById('contact-form').reset();
+    });
+}
+
+function modalSet(id, msg) {
+    const modal = document.getElementById(id);
+    loading.style.display = 'none';
+    modal.classList.add('mostrar');
+    document.getElementById("return").innerHTML = msg;
+    modal.addEventListener('click', (e) => {
+        if (e.target.id == id || e.target.className == 'close-modal-native') {
+            modal.classList.remove('mostrar');
+        }
+    });
+}
+
+/* SmtpJS.com - v3.0.0 */
+var Email = {
+    send: function (a) {
+        return new Promise(function (n, e) {
+            loading = document.querySelector('.loading');
+            loading.style.display = 'block';
+            a.nocache = Math.floor(1e6 * Math.random() + 1), a.Action = "Send";
+            var t = JSON.stringify(a);
+            Email.ajaxPost("https://smtpjs.com/v3/smtpjs.aspx?", t, function (e) { n(e) })
+        })
+    }, ajaxPost: function (e, n, t) {
+        var a = Email.createCORSRequest("POST", e);
+        a.setRequestHeader("Content-type", "application/x-www-form-urlencoded"), a.onload = function () {
+            var e = a.responseText; null != t && t(e)
+        }, a.send(n)
+    }, ajax: function (e, n) {
+        var t = Email.createCORSRequest("GET", e); t.onload = function () {
+            var e = t.responseText; null != n && n(e)
+        }, t.send()
+    }, createCORSRequest: function (e, n) {
+        var t = new XMLHttpRequest;
+        return "withCredentials" in t ? t.open(e, n, !0) : "undefined" != typeof XDomainRequest ? (t = new XDomainRequest).open(e, n) : t = null, t
+    }
+};
+
+/* Fields Validation */
+function validateFields() {
+   
+    document.getElementById('name').addEventListener('input', function (e) {
+        let count = '';
+        span_name = document.querySelector('.msg-name');
+        e.target.value = e.target.value.replace(/[^a-z]+/, '');
+        if (e.target.value.length < 3) {
+            span_name.innerHTML = "Preenchimento mínimo de 3 caracteres!";
+            span_name.style.display = 'block';
+            count += 1;
+        } else {
+            span_name.style.display = 'none';
+            validator(count);
+        }
+    });
+    document.getElementById('email').addEventListener('input', function (e) {
+        let count = '';
+        span_email = document.querySelector('.msg-email');
+        const testEmail = /^([\w-]+(?:\.[\w-]+)*)@((?:[\w-]+\.)*\w[\w-]{0,66})\.([a-z]{2,6}(?:\.[a-z]{2})?)$/i;
+        if (e.target.value.length > 3) {
+            if (testEmail.test(e.target.value)) {
+                span_email.style.display = 'none';
+            } else {
+                span_email.innerHTML = "Formato do E-mail inválido";
+                span_email.style.display = 'block';
+                count += 1;
+            }
+            validator(count);
+        }
+    });
+}
+
+function validator(count) {
+    const invalidForm = document.querySelector('form:invalid');
+    const submitBtn = document.getElementById('btnSendMail');
+    if (invalidForm || count != '') {
+        submitBtn.setAttribute('disabled', true);
+    } else {
+        submitBtn.disabled = false;
+    }
+}
+
+const inputs = document.getElementsByTagName("input");
+for (let input of inputs) {
+    input.addEventListener('change', disableField);
+}
+
+/* Máscaras ER */
+function mascara(o, f) {
+    v_obj = o
+    v_fun = f
+    setTimeout("execmascara()", 1)
+}
+function execmascara() {
+    v_obj.value = v_fun(v_obj.value)
+}
+function mcep(v) {
+    v = v.replace(/\D/g, "")                    //Remove tudo o que não é dígito
+    v = v.replace(/^(\d{2})(\d)/, "$1.$2")
+    v = v.replace(/(\d{3})(\d{1,3})$/, "$1-$2")
+    return v
+}
+function mtel(v) {
+    v = v.replace(/\D/g, "")                 //Remove tudo o que não é dígito
+    v = v.replace(/^(\d\d)(\d)/g, "($1) $2") //Coloca parênteses em volta dos dois primeiros dígitos
+    if (v.length > 13) {
+        v = v.replace(/(\d{5})(\d)/, "$1-$2")    //Coloca hífen entre o quarto e o quinto dígitos
+    } else {
+        v = v.replace(/(\d{4})(\d)/, "$1-$2")
+    }
+    return v
+}
+function cnpj(v) {
+    v = v.replace(/\D/g, "")                           //Remove tudo o que não é dígito
+    v = v.replace(/^(\d{2})(\d)/, "$1.$2")             //Coloca ponto entre o segundo e o terceiro dígitos
+    v = v.replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3") //Coloca ponto entre o quinto e o sexto dígitos
+    v = v.replace(/\.(\d{3})(\d)/, ".$1/$2")           //Coloca uma barra entre o oitavo e o nono dígitos
+    v = v.replace(/(\d{4})(\d)/, "$1-$2")              //Coloca um hífen depois do bloco de quatro dígitos
+    return v
+}
+function mcpf(v) {
+    v = v.replace(/\D/g, "")                    //Remove tudo o que não é dígito
+    v = v.replace(/(\d{3})(\d)/, "$1.$2")       //Coloca um ponto entre o terceiro e o quarto dígitos
+    v = v.replace(/(\d{3})(\d)/, "$1.$2")       //Coloca um ponto entre o terceiro e o quarto dígitos
+    //de novo (para o segundo bloco de números)
+    v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2") //Coloca um hífen entre o terceiro e o quarto dígitos
+    return v
+}
+function mdata(v) {
+    v = v.replace(/\D/g, "");                    //Remove tudo o que não é dígito
+    v = v.replace(/(\d{2})(\d)/, "$1/$2");
+    v = v.replace(/(\d{2})(\d)/, "$1/$2");
+
+    v = v.replace(/(\d{2})(\d{2})$/, "$1$2");
+    return v;
+}
+function mtempo(v) {
+    v = v.replace(/\D/g, "");                    //Remove tudo o que não é dígito
+    v = v.replace(/(\d{1})(\d{2})(\d{2})/, "$1:$2.$3");
+    return v;
+}
+function mhora(v) {
+    v = v.replace(/\D/g, "");                    //Remove tudo o que não é dígito
+    v = v.replace(/(\d{2})(\d)/, "$1h$2");
+    return v;
+}
+function mrg(v) {
+    v = v.replace(/\D/g, "");					//Remove tudo o que não é dígito
+    v = v.replace(/(\d)(\d{7})$/, "$1.$2");	//Coloca o . antes dos últimos 3 dígitos, e antes do verificador
+    v = v.replace(/(\d)(\d{4})$/, "$1.$2");	//Coloca o . antes dos últimos 3 dígitos, e antes do verificador
+    v = v.replace(/(\d)(\d)$/, "$1-$2");		//Coloca o - antes do último dígito
+    return v;
+}
+function mnum(v) {
+    v = v.replace(/\D/g, "");					//Remove tudo o que não é dígito
+    return v;
+}
+function mask() {
+    document.getElementById('fone').addEventListener('input', function (e) {
+        var aux = e.target.value.length < 15 ? e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,4})(\d{0,4})/) : e.target.value.replace(/\D/g, '').match(/(\d{0,2})(\d{0,5})(\d{0,4})/);
+        e.target.value = !aux[2] ? aux[1] : '(' + aux[1] + ') ' + aux[2] + (aux[3] ? '-' + aux[3] : '');
+    });
+}
+
+/* Exemplo promise */
+/* function scaryClown() {
+    return new Promise(resolve => {
+        loading = document.querySelector('.loading');
+        loading.style.display = 'block';
+        setTimeout(() => {
+            resolve('🤡');
+        }, 5000);
+    });
+}
+async function msg() {
+    const msg = await scaryClown();
+    loading.style.display = 'none';
+    console.log('Message:', msg);
+}
+msg(); */
