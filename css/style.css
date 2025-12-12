@@ -9,8 +9,8 @@
 }
 
 footer.fix-down {
-    border-top: 1px soid rgb(16, 62, 148);
-    background: rgb(45, 62, 218);
+    border-top: 1px soid #661414;
+    background: 661414;
     bottom: 0;
     left: 0;
     height: 60px;

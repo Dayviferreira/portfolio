@@ -9,10 +9,25 @@
 }
 footer.fix-down {
     border-top: 1px soid #103e94;
-    background: #2d3eda;
+    background: #661414;
     bottom: 0;
     position: relative;
     width: 100%;
+}
+footer.fix-down a {
+    color: #fff;            /* cor branca */
+    text-decoration: none;  /* remove sublinhado */
+}
+footer.fix-down a:hover {
+    color: #ffd1d1;         /* cor mais clara ao passar o mouse */
+}
+.lead-sm {
+  font-size: 1.1rem;   /* menor que a lead padrão */
+  font-weight: 300;    /* mantém o estilo leve da lead */
+  line-height: 1.5;    /* garante boa legibilidade */
+}
+.navbar-cereja {
+  background: #661414;
 }
 .scrollSpySite {
     position: relative;
